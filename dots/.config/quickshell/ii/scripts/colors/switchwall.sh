@@ -143,8 +143,17 @@ EOF
 
 set_wallpaper_path() {
     local path="$1"
+    local monitor="$2"
     if [ -f "$SHELL_CONFIG_FILE" ]; then
-        jq --arg path "$path" '.background.wallpaperPath = $path' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+        if [ -n "$monitor" ]; then
+            # Set per-monitor wallpaper path
+            jq --arg path "$path" --arg monitor "$monitor" \
+               '.background.wallpaperPaths = (.background.wallpaperPaths // {}) | .background.wallpaperPaths[$monitor] = $path' \
+               "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+        else
+            # Set global wallpaper path (for backward compatibility)
+            jq --arg path "$path" '.background.wallpaperPath = $path' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+        fi
     fi
 }
 
@@ -161,6 +170,7 @@ switch() {
     type_flag="$3"
     color_flag="$4"
     color="$5"
+    monitor_flag="$6"
 
     # Start Gemini auto-categorization if enabled
     aiStylingEnabled=$(jq -r '.background.clock.cookie.aiStyling' "$SHELL_CONFIG_FILE")
@@ -216,15 +226,21 @@ switch() {
             fi
 
             # Set wallpaper path
-            set_wallpaper_path "$imgpath"
+            set_wallpaper_path "$imgpath" "$monitor_flag"
 
             # Set video wallpaper
             local video_path="$imgpath"
-            monitors=$(hyprctl monitors -j | jq -r '.[] | .name')
-            for monitor in $monitors; do
-                mpvpaper -o "$VIDEO_OPTS" "$monitor" "$video_path" &
-                sleep 0.1
-            done
+            if [ -n "$monitor_flag" ]; then
+                # Apply to specified monitor only
+                mpvpaper -o "$VIDEO_OPTS" "$monitor_flag" "$video_path" &
+            else
+                # Apply to all monitors (backward compatibility)
+                monitors=$(hyprctl monitors -j | jq -r '.[] | .name')
+                for monitor in $monitors; do
+                    mpvpaper -o "$VIDEO_OPTS" "$monitor" "$video_path" &
+                    sleep 0.1
+                done
+            fi
 
             # Extract first frame for color generation
             thumbnail="$THUMBNAIL_DIR/$(basename "$imgpath").jpg"
@@ -246,7 +262,7 @@ switch() {
             matugen_args=(image "$imgpath")
             generate_colors_material_args=(--path "$imgpath")
             # Update wallpaper path in config
-            set_wallpaper_path "$imgpath"
+            set_wallpaper_path "$imgpath" "$monitor_flag"
             remove_restore
         fi
     fi
@@ -315,6 +331,7 @@ main() {
     color_flag=""
     color=""
     noswitch_flag=""
+    monitor_flag=""
 
     get_type_from_config() {
         jq -r '.appearance.palette.type' "$SHELL_CONFIG_FILE" 2>/dev/null || echo "auto"
@@ -364,6 +381,10 @@ main() {
                 noswitch_flag="1"
                 imgpath=$(jq -r '.background.wallpaperPath' "$SHELL_CONFIG_FILE" 2>/dev/null || echo "")
                 shift
+                ;;
+            --monitor)
+                monitor_flag="$2"
+                shift 2
                 ;;
             *)
                 if [[ -z "$imgpath" ]]; then
@@ -430,7 +451,7 @@ main() {
         fi
     fi
 
-    switch "$imgpath" "$mode_flag" "$type_flag" "$color_flag" "$color"
+    switch "$imgpath" "$mode_flag" "$type_flag" "$color_flag" "$color" "$monitor_flag"
 }
 
 main "$@"

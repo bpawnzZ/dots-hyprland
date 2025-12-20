@@ -38,8 +38,23 @@ Variants {
         property int firstWorkspaceId: relevantWindows[0]?.workspace.id || 1
         property int lastWorkspaceId: relevantWindows[relevantWindows.length - 1]?.workspace.id || 10
         // Wallpaper
-        property bool wallpaperIsVideo: Config.options.background.wallpaperPath.endsWith(".mp4") || Config.options.background.wallpaperPath.endsWith(".webm") || Config.options.background.wallpaperPath.endsWith(".mkv") || Config.options.background.wallpaperPath.endsWith(".avi") || Config.options.background.wallpaperPath.endsWith(".mov")
-        property string wallpaperPath: wallpaperIsVideo ? Config.options.background.thumbnailPath : Config.options.background.wallpaperPath
+        property bool wallpaperIsVideo: {
+            const path = getWallpaperPathForMonitor();
+            return path.endsWith(".mp4") || path.endsWith(".webm") || path.endsWith(".mkv") || path.endsWith(".avi") || path.endsWith(".mov");
+        }
+        property string wallpaperPath: wallpaperIsVideo ? Config.options.background.thumbnailPath : getWallpaperPathForMonitor()
+
+        function getWallpaperPathForMonitor() {
+            // Check for per-monitor wallpaper paths first
+            if (Config.options.background.wallpaperPaths && monitor && monitor.name) {
+                const monitorPath = Config.options.background.wallpaperPaths[monitor.name];
+                if (monitorPath && monitorPath.length > 0) {
+                    return monitorPath;
+                }
+            }
+            // Fallback to single wallpaper path for all monitors
+            return Config.options.background.wallpaperPath;
+        }
         property bool wallpaperSafetyTriggered: {
             const enabled = Config.options.workSafety.enable.wallpaper;
             const sensitiveWallpaper = (CF.StringUtils.stringListContainsSubstring(wallpaperPath.toLowerCase(), Config.options.workSafety.triggerCondition.fileKeywords));

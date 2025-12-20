@@ -51,44 +51,69 @@ This suggests:
 2. Configuration is **user-specific** and not stored in the dots repo
 3. The repo contains only **templates/defaults**
 
-## 🚀 Next Steps Required
+## ✅ **IMPLEMENTATION COMPLETE: Multi-Monitor Wallpaper Support** 🎯
 
-### **Option 1: Create Default Configuration Template**
-Create a default `config.json` template in the repository that users can customize:
+### **What Was Implemented**
+The system now supports **per-monitor wallpapers** through the following changes:
 
+#### **1. Configuration Schema**
+- **New**: `background.wallpaperPaths` object mapping monitor names to wallpaper paths
+  ```json
+  "wallpaperPaths": {
+    "eDP-1": "/path/to/wallpaper1.jpg",
+    "HDMI-1": "/path/to/wallpaper2.jpg"
+  }
+  ```
+- **Backward Compatible**: `background.wallpaperPath` still works for single wallpaper across all monitors
+- **Fallback Logic**: Background components check `wallpaperPaths[monitor.name]` first, then fall back to `wallpaperPath`
+
+#### **2. Modified Files**
+- `Background.qml`: Added `getWallpaperPathForMonitor()` function for per-monitor path resolution
+- `switchwall.sh`: Added `--monitor` flag and updated `set_wallpaper_path()` to handle per-monitor config
+
+#### **3. Usage Examples**
 ```bash
-# Create config template
-cp /home/insomnia/.config/illogical-impulse/config.json \
-   /home/insomnia/git/dots-hyprland/dots/.config/quickshell/ii/config.json.template
+# Set wallpaper for specific monitor
+./switchwall.sh --image /path/to/wallpaper.jpg --monitor eDP-1
 
-# Modify paths to be relative or use placeholders
+# Set wallpaper for all monitors (backward compatible)
+./switchwall.sh --image /path/to/wallpaper.jpg
+
+# Set different wallpapers for different monitors
+./switchwall.sh --image /path/to/wallpaper1.jpg --monitor eDP-1
+./switchwall.sh --image /path/to/wallpaper2.jpg --monitor HDMI-1
 ```
 
-### **Option 2: Add Wallpaper Configuration Script**
-Create a setup script that:
-1. Copies default wallpapers to user's Pictures directory
-2. Generates initial config with correct paths
-3. Sets up symlinks or configuration
+#### **4. Technical Details**
+- **Monitor Identification**: Uses Hyprland monitor names from `hyprctl monitors -j | jq -r '.[].name'`
+- **Color Generation**: Always uses the wallpaper being set for system color generation (affects all monitors)
+- **Video Wallpapers**: `--monitor` flag works with video wallpapers (mpvpaper applied to specified monitor only)
+- **UI Integration**: Wallpaper selector UI still applies to all monitors (backward compatibility)
 
-### **Option 3: Modify Existing Scripts**
-Update `switchwall.sh` and related scripts to handle:
-- Default wallpaper paths
-- Fallback wallpapers
-- Configuration initialization
+#### **5. Limitations & Notes**
+- Widgets (clock, weather) use global `wallpaperPath` for safety checking (not per-monitor)
+- Video wallpaper restore script (`__restore_video_wallpaper.sh`) restores same video on all monitors
+- Appearance color quantization uses global `wallpaperPath` (from first monitor or fallback)
+- For full UI integration, WallpaperSelector would need to know which monitor is being targeted
 
-## 📝 Recommendations
+## 🔗 **Modified Files**
+- `dots/.config/quickshell/ii/modules/ii/background/Background.qml` - Core per-monitor logic
+- `dots/.config/quickshell/ii/scripts/colors/switchwall.sh` - CLI interface with `--monitor` flag
+- `CLAUDE.md` - This documentation file
 
-1. **Create `config.json.template`** in the repo with placeholder paths
-2. **Add setup documentation** explaining how to customize wallpaper paths
-3. **Consider adding default wallpapers** to the repo's assets
-4. **Update installation scripts** to handle wallpaper configuration
+## 🚀 **Testing & Validation**
+1. **Test per-monitor config**: `jq '.background.wallpaperPaths = {"eDP-1": "/test1.jpg", "HDMI-1": "/test2.jpg"}' config.json`
+2. **Test CLI**: `./switchwall.sh --image ~/Pictures/wall.jpg --monitor eDP-1`
+3. **Verify backward compatibility**: `./switchwall.sh --image ~/Pictures/wall.jpg` (applies to all monitors)
 
-## 🔗 Related Files for Modification
-- `switchwall.sh` - Main wallpaper switching script
-- `Wallpapers.qml` - Wallpaper service
-- Any initialization scripts that create first-run config
+## 📝 **Future Enhancements**
+1. **UI Integration**: Update WallpaperSelector to target specific monitors
+2. **Video Restore**: Enhance restore script for per-monitor video wallpapers
+3. **Widget Support**: Update widgets to use per-monitor wallpaper paths
+4. **Configuration UI**: Add monitor-specific wallpaper settings in QuickConfig
 
-## ⚠️ Important Notes
-- The user's live config uses **absolute paths** (`/home/insomnia/Pictures/...`)
-- Repository should use **relative paths** or **environment variables**
-- Need to decide: Include sample wallpapers or just configuration templates?
+## ⚠️ **Important Notes**
+- The system maintains **full backward compatibility** with existing configs
+- Monitor names are dynamic (from Hyprland) - use `hyprctl monitors -j` to see available names
+- Color generation affects entire system regardless of which monitor's wallpaper is changed
+
