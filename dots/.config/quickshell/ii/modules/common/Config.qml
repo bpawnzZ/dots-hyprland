@@ -203,8 +203,15 @@ Singleton {
                         property real y: 100
                     }
                 }
-                property string wallpaperPath: ""
-                property string thumbnailPath: ""
+                property JsonObject wallpaperPaths: JsonObject {
+                    // Per-monitor wallpaper paths, keyed by monitor name (e.g., "eDP-1", "HDMI-A-1")
+                    // If empty, falls back to legacy wallpaperPath for migration
+                }
+                property string wallpaperPath: "" // Legacy single-monitor wallpaper path (for migration)
+                property JsonObject thumbnailPaths: JsonObject {
+                    // Per-monitor thumbnail paths, keyed by monitor name
+                }
+                property string thumbnailPath: "" // Legacy single-monitor thumbnail path (for migration)
                 property bool hideWhenFullscreen: true
                 property JsonObject parallax: JsonObject {
                     property bool vertical: false

@@ -15,6 +15,7 @@ MouseArea {
     property int columns: 4
     property real previewCellAspectRatio: 4 / 3
     property bool useDarkMode: Appearance.m3colors.darkmode
+    property string selectedMonitor: Wallpapers.currentMonitor
 
     function updateThumbnails() {
         const totalImageMargin = (Appearance.sizes.wallpaperSelectorItemMargins + Appearance.sizes.wallpaperSelectorItemPadding) * 2
@@ -42,7 +43,7 @@ MouseArea {
 
     function selectWallpaperPath(filePath) {
         if (filePath && filePath.length > 0) {
-            Wallpapers.select(filePath, root.useDarkMode);
+            Wallpapers.select(filePath, root.useDarkMode, root.selectedMonitor);
             filterField.text = "";
         }
     }
@@ -156,6 +157,27 @@ MouseArea {
                             weight: Font.Medium
                         }
                         text: Translation.tr("Pick a wallpaper")
+                    }
+
+                    // Monitor selection dropdown
+                    ComboBox {
+                        Layout.margins: 8
+                        Layout.fillWidth: true
+                        visible: Wallpapers.monitorList.length > 1
+                        model: ["Apply to all monitors", ...Wallpapers.monitorList]
+                        currentIndex: {
+                            if (root.selectedMonitor === "") return 0
+                            const monitorIndex = Wallpapers.monitorList.indexOf(root.selectedMonitor)
+                            return monitorIndex >= 0 ? monitorIndex + 1 : 0
+                        }
+                        onActivated: index => {
+                            if (index === 0) {
+                                root.selectedMonitor = ""
+                            } else {
+                                root.selectedMonitor = Wallpapers.monitorList[index - 1]
+                            }
+                        }
+                        ToolTip.text: Translation.tr("Select which monitor to apply wallpaper to")
                     }
                     ListView {
                         // Quick dirs
@@ -288,8 +310,8 @@ MouseArea {
                             fileModelData: modelData
                             width: grid.cellWidth
                             height: grid.cellHeight
-                            colBackground: (index === grid?.currentIndex || containsMouse) ? Appearance.colors.colPrimary : (fileModelData.filePath === Config.options.background.wallpaperPath) ? Appearance.colors.colSecondaryContainer : ColorUtils.transparentize(Appearance.colors.colPrimaryContainer)
-                            colText: (index === grid.currentIndex || containsMouse) ? Appearance.colors.colOnPrimary : (fileModelData.filePath === Config.options.background.wallpaperPath) ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer0
+                            colBackground: (index === grid?.currentIndex || containsMouse) ? Appearance.colors.colPrimary : (fileModelData.filePath === Config.options.background.wallpaperPath || fileModelData.filePath === Config.options.background.wallpaperPaths?.[root.selectedMonitor]) ? Appearance.colors.colSecondaryContainer : ColorUtils.transparentize(Appearance.colors.colPrimaryContainer)
+                            colText: (index === grid.currentIndex || containsMouse) ? Appearance.colors.colOnPrimary : (fileModelData.filePath === Config.options.background.wallpaperPath || fileModelData.filePath === Config.options.background.wallpaperPaths?.[root.selectedMonitor]) ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer0
 
                             onEntered: {
                                 grid.currentIndex = index;
@@ -338,7 +360,7 @@ MouseArea {
                         IconToolbarButton {
                             implicitWidth: height
                             onClicked: {
-                                Wallpapers.randomFromCurrentFolder();
+                                Wallpapers.randomFromCurrentFolder(root.useDarkMode, root.selectedMonitor);
                             }
                             text: "ifl"
                             StyledToolTip {

@@ -143,15 +143,29 @@ EOF
 
 set_wallpaper_path() {
     local path="$1"
+    local monitor="$2"
     if [ -f "$SHELL_CONFIG_FILE" ]; then
-        jq --arg path "$path" '.background.wallpaperPath = $path' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+        if [[ -n "$monitor" && "$monitor" != "all" ]]; then
+            # Set per-monitor wallpaper path
+            jq --arg path "$path" --arg monitor "$monitor" '.background.wallpaperPaths[$monitor] = $path' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+        else
+            # Set legacy wallpaperPath for backward compatibility
+            jq --arg path "$path" '.background.wallpaperPath = $path' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+        fi
     fi
 }
 
 set_thumbnail_path() {
     local path="$1"
+    local monitor="$2"
     if [ -f "$SHELL_CONFIG_FILE" ]; then
-        jq --arg path "$path" '.background.thumbnailPath = $path' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+        if [[ -n "$monitor" && "$monitor" != "all" ]]; then
+            # Set per-monitor thumbnail path
+            jq --arg path "$path" --arg monitor "$monitor" '.background.thumbnailPaths[$monitor] = $path' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+        else
+            # Set legacy thumbnailPath for backward compatibility
+            jq --arg path "$path" '.background.thumbnailPath = $path' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+        fi
     fi
 }
 
@@ -161,6 +175,8 @@ switch() {
     type_flag="$3"
     color_flag="$4"
     color="$5"
+    monitor_flag="$6"
+    all_monitors_flag="$7"
 
     # Start Gemini auto-categorization if enabled
     aiStylingEnabled=$(jq -r '.background.clock.cookie.aiStyling' "$SHELL_CONFIG_FILE")
@@ -216,22 +232,43 @@ switch() {
             fi
 
             # Set wallpaper path
-            set_wallpaper_path "$imgpath"
+            if [[ -n "$monitor_flag" && "$monitor_flag" != "all" ]]; then
+                set_wallpaper_path "$imgpath" "$monitor_flag"
+            else
+                set_wallpaper_path "$imgpath" ""
+            fi
 
             # Set video wallpaper
             local video_path="$imgpath"
-            monitors=$(hyprctl monitors -j | jq -r '.[] | .name')
-            for monitor in $monitors; do
-                mpvpaper -o "$VIDEO_OPTS" "$monitor" "$video_path" &
-                sleep 0.1
-            done
+            if [[ -n "$monitor_flag" && "$monitor_flag" != "all" ]]; then
+                # Apply to specific monitor
+                mpvpaper -o "$VIDEO_OPTS" "$monitor_flag" "$video_path" &
+            elif [[ -n "$all_monitors_flag" ]]; then
+                # Apply to all monitors
+                monitors=$(hyprctl monitors -j | jq -r '.[] | .name')
+                for monitor in $monitors; do
+                    mpvpaper -o "$VIDEO_OPTS" "$monitor" "$video_path" &
+                    sleep 0.1
+                done
+            else
+                # Default: apply to all monitors (backward compatibility)
+                monitors=$(hyprctl monitors -j | jq -r '.[] | .name')
+                for monitor in $monitors; do
+                    mpvpaper -o "$VIDEO_OPTS" "$monitor" "$video_path" &
+                    sleep 0.1
+                done
+            fi
 
             # Extract first frame for color generation
             thumbnail="$THUMBNAIL_DIR/$(basename "$imgpath").jpg"
             ffmpeg -y -i "$imgpath" -vframes 1 "$thumbnail" 2>/dev/null
 
             # Set thumbnail path
-            set_thumbnail_path "$thumbnail"
+            if [[ -n "$monitor_flag" && "$monitor_flag" != "all" ]]; then
+                set_thumbnail_path "$thumbnail" "$monitor_flag"
+            else
+                set_thumbnail_path "$thumbnail" ""
+            fi
 
             if [ -f "$thumbnail" ]; then
                 matugen_args=(image "$thumbnail")
@@ -246,7 +283,11 @@ switch() {
             matugen_args=(image "$imgpath")
             generate_colors_material_args=(--path "$imgpath")
             # Update wallpaper path in config
-            set_wallpaper_path "$imgpath"
+            if [[ -n "$monitor_flag" && "$monitor_flag" != "all" ]]; then
+                set_wallpaper_path "$imgpath" "$monitor_flag"
+            else
+                set_wallpaper_path "$imgpath" ""
+            fi
             remove_restore
         fi
     fi
@@ -315,6 +356,8 @@ main() {
     color_flag=""
     color=""
     noswitch_flag=""
+    monitor_flag=""
+    all_monitors_flag=""
 
     get_type_from_config() {
         jq -r '.appearance.palette.type' "$SHELL_CONFIG_FILE" 2>/dev/null || echo "auto"
@@ -359,6 +402,14 @@ main() {
             --image)
                 imgpath="$2"
                 shift 2
+                ;;
+            --monitor)
+                monitor_flag="$2"
+                shift 2
+                ;;
+            --all-monitors)
+                all_monitors_flag="1"
+                shift
                 ;;
             --noswitch)
                 noswitch_flag="1"
@@ -430,7 +481,7 @@ main() {
         fi
     fi
 
-    switch "$imgpath" "$mode_flag" "$type_flag" "$color_flag" "$color"
+    switch "$imgpath" "$mode_flag" "$type_flag" "$color_flag" "$color" "$monitor_flag" "$all_monitors_flag"
 }
 
 main "$@"

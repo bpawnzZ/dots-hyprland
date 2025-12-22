@@ -28,6 +28,8 @@ Singleton {
     property list<string> wallpapers: [] // List of absolute file paths (without file://)
     readonly property bool thumbnailGenerationRunning: thumbgenProc.running
     property real thumbnailGenerationProgress: 0
+    property list<string> monitorList: [] // List of monitor names from Hyprland
+    property string currentMonitor: "" // Currently selected monitor for wallpaper operations
 
     signal changed()
     signal thumbnailGenerated(directory: string)
@@ -35,11 +37,50 @@ Singleton {
 
     function load () {} // For forcing initialization
 
+    // Monitor detection
+    Process {
+        id: monitorDetectProc
+        function detectMonitors() {
+            monitorDetectProc.exec(["hyprctl", "monitors", "-j"])
+        }
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const monitors = JSON.parse(text)
+                    const monitorNames = monitors.map(monitor => monitor.name)
+                    root.monitorList = monitorNames
+                    if (root.currentMonitor === "" && monitorNames.length > 0) {
+                        root.currentMonitor = monitorNames[0]
+                    }
+                } catch (e) {
+                    console.warn("Failed to parse monitor data:", e)
+                    root.monitorList = []
+                }
+            }
+        }
+    }
+
+    Component.onCompleted: {
+        monitorDetectProc.detectMonitors()
+        // Migrate existing wallpaperPath to wallpaperPaths if needed
+        if (Config.options.background.wallpaperPath && Config.options.background.wallpaperPath.length > 0) {
+            if (!Config.options.background.wallpaperPaths || Object.keys(Config.options.background.wallpaperPaths).length === 0) {
+                // Migrate single wallpaper to all monitors
+                const monitors = root.monitorList
+                if (monitors.length > 0) {
+                    for (const monitor of monitors) {
+                        Config.options.background.wallpaperPaths[monitor] = Config.options.background.wallpaperPath
+                    }
+                }
+            }
+        }
+    }
+
     // Executions
     Process {
         id: applyProc
     }
-    
+
     function openFallbackPicker(darkMode = Appearance.m3colors.darkmode) {
         applyProc.exec([
             Directories.wallpaperSwitchScriptPath,
@@ -47,12 +88,27 @@ Singleton {
         ])
     }
 
-    function apply(path, darkMode = Appearance.m3colors.darkmode) {
+    function apply(path, darkMode = Appearance.m3colors.darkmode, monitor = "") {
+        if (!path || path.length === 0) return
+        const args = [
+            Directories.wallpaperSwitchScriptPath,
+            "--image", path,
+            "--mode", (darkMode ? "dark" : "light")
+        ]
+        if (monitor && monitor.length > 0) {
+            args.push("--monitor", monitor)
+        }
+        applyProc.exec(args)
+        root.changed()
+    }
+
+    function applyToAll(path, darkMode = Appearance.m3colors.darkmode) {
         if (!path || path.length === 0) return
         applyProc.exec([
             Directories.wallpaperSwitchScriptPath,
             "--image", path,
-            "--mode", (darkMode ? "dark" : "light")
+            "--mode", (darkMode ? "dark" : "light"),
+            "--all-monitors"
         ])
         root.changed()
     }
@@ -61,9 +117,11 @@ Singleton {
         id: selectProc
         property string filePath: ""
         property bool darkMode: Appearance.m3colors.darkmode
-        function select(filePath, darkMode = Appearance.m3colors.darkmode) {
+        property string monitor: ""
+        function select(filePath, darkMode = Appearance.m3colors.darkmode, monitor = "") {
             selectProc.filePath = filePath
             selectProc.darkMode = darkMode
+            selectProc.monitor = monitor
             selectProc.exec(["test", "-d", FileUtils.trimFileProtocol(filePath)])
         }
         onExited: (exitCode, exitStatus) => {
@@ -71,20 +129,20 @@ Singleton {
                 setDirectory(selectProc.filePath);
                 return;
             }
-            root.apply(selectProc.filePath, selectProc.darkMode);
+            root.apply(selectProc.filePath, selectProc.darkMode, selectProc.monitor);
         }
     }
 
-    function select(filePath, darkMode = Appearance.m3colors.darkmode) {
-        selectProc.select(filePath, darkMode);
+    function select(filePath, darkMode = Appearance.m3colors.darkmode, monitor = "") {
+        selectProc.select(filePath, darkMode, monitor);
     }
 
-    function randomFromCurrentFolder(darkMode = Appearance.m3colors.darkmode) {
+    function randomFromCurrentFolder(darkMode = Appearance.m3colors.darkmode, monitor = "") {
         if (folderModel.count === 0) return;
         const randomIndex = Math.floor(Math.random() * folderModel.count);
         const filePath = folderModel.get(randomIndex, "filePath");
         print("Randomly selected wallpaper:", filePath);
-        root.select(filePath, darkMode);
+        root.select(filePath, darkMode, monitor);
     }
 
     Process {
@@ -185,8 +243,8 @@ Singleton {
     IpcHandler {
         target: "wallpapers"
 
-        function apply(path: string): void {
-            root.apply(path);
+        function apply(path: string, monitor: string = ""): void {
+            root.apply(path, Appearance.m3colors.darkmode, monitor);
         }
     }
 }

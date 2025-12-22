@@ -38,8 +38,26 @@ Variants {
         property int firstWorkspaceId: relevantWindows[0]?.workspace.id || 1
         property int lastWorkspaceId: relevantWindows[relevantWindows.length - 1]?.workspace.id || 10
         // Wallpaper
-        property bool wallpaperIsVideo: Config.options.background.wallpaperPath.endsWith(".mp4") || Config.options.background.wallpaperPath.endsWith(".webm") || Config.options.background.wallpaperPath.endsWith(".mkv") || Config.options.background.wallpaperPath.endsWith(".avi") || Config.options.background.wallpaperPath.endsWith(".mov")
-        property string wallpaperPath: wallpaperIsVideo ? Config.options.background.thumbnailPath : Config.options.background.wallpaperPath
+        property string monitorWallpaperPath: {
+            // Get wallpaper path for this specific monitor
+            const monitorName = monitor?.name || ""
+            if (monitorName && Config.options.background.wallpaperPaths && Config.options.background.wallpaperPaths[monitorName]) {
+                return Config.options.background.wallpaperPaths[monitorName]
+            }
+            // Fallback to legacy wallpaperPath for migration
+            return Config.options.background.wallpaperPath
+        }
+        property string monitorThumbnailPath: {
+            // Get thumbnail path for this specific monitor
+            const monitorName = monitor?.name || ""
+            if (monitorName && Config.options.background.thumbnailPaths && Config.options.background.thumbnailPaths[monitorName]) {
+                return Config.options.background.thumbnailPaths[monitorName]
+            }
+            // Fallback to legacy thumbnailPath for migration
+            return Config.options.background.thumbnailPath
+        }
+        property bool wallpaperIsVideo: monitorWallpaperPath.endsWith(".mp4") || monitorWallpaperPath.endsWith(".webm") || monitorWallpaperPath.endsWith(".mkv") || monitorWallpaperPath.endsWith(".avi") || monitorWallpaperPath.endsWith(".mov")
+        property string wallpaperPath: wallpaperIsVideo ? monitorThumbnailPath : monitorWallpaperPath
         property bool wallpaperSafetyTriggered: {
             const enabled = Config.options.workSafety.enable.wallpaper;
             const sensitiveWallpaper = (CF.StringUtils.stringListContainsSubstring(wallpaperPath.toLowerCase(), Config.options.workSafety.triggerCondition.fileKeywords));
