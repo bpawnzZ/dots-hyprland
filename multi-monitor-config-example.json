@@ -1,0 +1,31 @@
+{
+  "background": {
+    "hideWhenFullscreen": true,
+    "parallax": {
+      "autoVertical": false,
+      "enableSidebar": true,
+      "enableWorkspace": true,
+      "vertical": true,
+      "widgetsFactor": 1.2,
+      "workspaceZoom": 1.07
+    },
+    "thumbnailPath": "",  // Legacy single-monitor thumbnail (for migration)
+    "thumbnailPaths": {
+      // Per-monitor thumbnail paths
+      "eDP-1": "/home/user/.cache/quickshell/user/generated/thumbnails/wallpaper1_thumb.jpg",
+      "HDMI-A-1": "/home/user/.cache/quickshell/user/generated/thumbnails/wallpaper2_thumb.jpg",
+      "DP-2": "/home/user/.cache/quickshell/user/generated/thumbnails/wallpaper3_thumb.jpg"
+    },
+    "wallpaperPath": "/home/user/Pictures/Wallpapers/default.jpg",  // Legacy single-monitor (for migration)
+    "wallpaperPaths": {
+      // Per-monitor wallpaper paths - keyed by monitor name from hyprctl
+      "eDP-1": "/home/user/Pictures/Wallpapers/nature1.jpg",
+      "HDMI-A-1": "/home/user/Pictures/Wallpapers/cityscape.jpg",
+      "DP-2": "/home/user/Pictures/Wallpapers/abstract.jpg"
+    },
+    "widgets": {
+      // ... other widget configurations
+    }
+  },
+  // ... rest of config
+}
