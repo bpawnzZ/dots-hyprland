@@ -243,8 +243,8 @@ Singleton {
     IpcHandler {
         target: "wallpapers"
 
-        function apply(path: string, monitor: string = ""): void {
-            root.apply(path, Appearance.m3colors.darkmode, monitor);
+        function apply(path, monitor) {
+            root.apply(path, Appearance.m3colors.darkmode, monitor || "");
         }
     }
 }
