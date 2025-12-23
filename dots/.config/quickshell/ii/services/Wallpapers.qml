@@ -32,8 +32,8 @@ Singleton {
     property string currentMonitor: "" // Currently selected monitor for wallpaper operations
 
     signal changed()
-    signal thumbnailGenerated(directory: string)
-    signal thumbnailGeneratedFile(filePath: string)
+    signal thumbnailGenerated(string directory)
+    signal thumbnailGeneratedFile(string filePath)
 
     function load () {} // For forcing initialization
 
@@ -203,7 +203,7 @@ Singleton {
     }
 
     // Thumbnail generation
-    function generateThumbnail(size: string) {
+    function generateThumbnail(size) {
         if (!["normal", "large", "x-large", "xx-large"].includes(size)) throw new Error("Invalid thumbnail size");
         thumbgenProc.directory = root.directory
         thumbgenProc.running = false
